@@ -1,6 +1,7 @@
 import socket
 import struct
 import sys
+import takprotobuf
 
 multicast_group = '239.2.3.1'
 server_address = ('', 6969)
@@ -25,6 +26,8 @@ while True:
     
     print ('received %s bytes from %s' % (len(data), address))
     print (data)
+    decoded = takprotobuf.parseProto(data)
+    print(decoded)
 
     #print ('sending acknowledgement to', address)
     #sock.sendto('ack'.encode('utf-8'), address)
