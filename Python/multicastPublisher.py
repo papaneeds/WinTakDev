@@ -1,11 +1,27 @@
 import socket
 import struct
 import sys
-import takprotobuf
+#import takprotobuf
 import datetime
+import time
 
-#message = 'very important data'
-#multicast_group = ('239.2.3.2', 10000)
+# add the takproto_python directory to your PYTHONPATH.
+# This will allow you to import the _pb2 packages.
+sys.path.insert(0, './takproto_python')
+
+from takproto_python.contact_pb2 import Contact
+from takproto_python.detail_pb2 import Detail
+from takproto_python.group_pb2 import Group
+from takproto_python.status_pb2 import Status
+from takproto_python.takv_pb2 import Takv
+from takproto_python.track_pb2 import Track
+from takproto_python.takmessage_pb2 import TakMessage
+from takproto_python.cotevent_pb2 import CotEvent
+
+def unix_time_millis(dt):
+    epoch = datetime.datetime.utcfromtimestamp(0)
+    millis = (dt - epoch).total_seconds() * 1000.0
+    return int(millis)
 
 multicast_group = ('239.2.3.1', 6969)
 
@@ -26,6 +42,7 @@ print('Enter the message type')
 print(' cirlce   = c')
 print(' freeform = f')
 print(' HQ       = h')
+print(' event    = e')
 messageType = input()
 print('Enter the message encoding')
 print(' xml      = x')
@@ -104,7 +121,58 @@ try:
                 <color value='-1'/>
                 <precisionlocation altsrc='???'/>
             </detail>
-        </event>"""       
+        </event>""" 
+    elif (messageType == "e"):
+        myTakMessage = TakMessage()
+        myCotEvent = myTakMessage.cotEvent
+        myCotEvent.type = 'a-f-G-E-V-C'
+        myCotEvent.uid = 'aa0b0312-b5cd-4c2c-bbbc-9c4c70216261'
+        current_time = datetime.datetime.utcnow()
+        stale_time = current_time + datetime.timedelta(hours)
+        myCotEvent.sendTime = unix_time_millis(current_time)
+        myCotEvent.startTime = myCotEvent.sendTime
+        myCotEvent.staleTime = unix_time_millis(stale_time)
+        myCotEvent.how = 'h-e'
+        myCotEvent.lat = lat
+        myCotEvent.lon = lon
+        myCotEvent.hae = 999999.0
+        myCotEvent.ce = 999999.0
+        myCotEvent.le = 999999 
+        # add a detail to the cot event
+        myDetail = myCotEvent.detail
+
+        # add a contact to the detail
+        myContact = myDetail.contact
+        myContact.endpoint = '192.168.1.10:4242:tcp'
+        myContact.callsign = 'Eliopoli HQ'
+        
+        # add a track to the detail
+        myTrack = myDetail.track
+        myTrack.speed = 0.0
+        myTrack.course = 0.0
+
+        # add a group to the detail
+        myGroup = myDetail.group
+        myGroup.name = 'Yellow'
+        myGroup.role = 'HQ'
+
+        # add a status to the detail
+        myStatus = myDetail.status
+        myStatus.battery = 82
+
+        # add a takv to the detail
+        myTakv = myDetail.takv
+        myTakv.device = 'LENOVO 20QV0007US'
+        myTakv.platform = 'WinTAK-CIV'
+        myTakv.os = 'Microsoft Windows 10 Home'
+        myTakv.version = '1.10.0.137'
+
+        headerByteArray = bytearray(b'\xbf\x01\xbf')
+        takMessageByteArray = bytearray(myTakMessage.SerializeToString())
+        encodedMessage = headerByteArray + takMessageByteArray
+
+        print(encodedMessage)
+        print("Hello")
     else:
         message = "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
         message += "<event version='2.0' uid='aa0b0312-b5cd-4c2c-bbbc-9c4c70216261' type='a-f-G-E-V-C' time='" + current_time + "' start='" + current_time + "' stale='" + stale_time + "' how='h-e'>"
@@ -122,19 +190,21 @@ try:
         #                       \x01 for protobuf payload
         #
         # Since this is xml payload we set the <protocol type> = \x00
-        xmlHeader = b'\xbf\x00\xbf'
-        encodedMessage = bytearray(message, 'utf8')
-        encodedMessage = xmlHeader + encodedMessage
+        #xmlHeader = b'\xbf\x00\xbf'
+        #encodedMessage = bytearray(message, 'utf8')
+        encodedMessage = bytearray(message, 'ascii')
+        #encodedMessage = xmlHeader + bytes(encodedMessage)
         print("encoded xml message")
         print(encodedMessage)
     else:
         print("Sending the message as protobuf")
         # Now encode the message as protobuf
-        encodedMessage = takprotobuf.xmlToProto(message)
-        decodedMessage = takprotobuf.parseProto(encodedMessage)
+        decodedMessage = ""
+        #encodedMessage = takprotobuf.xmlToProto(message)
+        #decodedMessage = takprotobuf.parseProto(encodedMessage)
         print("encoded protobuf message")
         print(encodedMessage)
-        print ('sending "%s"' % decodedMessage)
+        #print ('sending "%s"' % decodedMessage)
 
     # Send data to the multicast group
 
