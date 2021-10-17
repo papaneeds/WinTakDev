@@ -28,9 +28,10 @@ sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
 #
 # Receive/respond loop
+maxMessageSize = 1024*10
 while True:
     print('\nwaiting to receive message')
-    data, address = sock.recvfrom(1024)
+    data, address = sock.recvfrom(maxMessageSize)
     
     print ('received %s bytes from %s' % (len(data), address))
     print (data)
