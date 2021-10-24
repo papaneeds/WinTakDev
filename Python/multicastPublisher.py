@@ -4,6 +4,10 @@ import sys
 #import takprotobuf
 import datetime
 import time
+import requests
+import hashlib
+import uuid
+import random
 
 # add the takproto_python directory to your PYTHONPATH.
 # This will allow you to import the _pb2 packages.
@@ -37,6 +41,12 @@ sock.settimeout(0.2)
 ttl = struct.pack('b', 10)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
 
+# Some variables that we need at global scope for the stress tests
+numIterations = 0
+numSecondsToSleep = 0.0
+numUnits = 0
+direction = 1.0
+
 while True:
 
     # prompt the user for the type of message that they want to send
@@ -56,6 +66,10 @@ while True:
     print(' telestration           = tx')
     print('Protobuf messages')
     print(' HQ                     = hp')
+    print('Data Packages')
+    print(' send a datapackage     = dpz')
+    print('Multi-unit test')
+    print(' send multiple units    = nunits')
     print('Exit the program')
     print(' Exit                   = exit')
 
@@ -70,8 +84,10 @@ while True:
     current_time = datetime.datetime.utcnow().isoformat()
     current_time += "Z"
     # this is the time in the future when the message is stale
-    hours = 10
-    stale_time = datetime.datetime.utcnow() + datetime.timedelta(hours)
+    days = 10
+    seconds = 0
+    microseconds = 0
+    stale_time = datetime.datetime.utcnow() + datetime.timedelta(days, seconds, microseconds)
     stale_time = stale_time.isoformat() + "Z"
     lat = 43.786
     lon = -74.863
@@ -81,6 +97,7 @@ while True:
     message = ""
 
     if (messageType == 'cx'):
+        # create a circle in xml format
         lat += deltaLat
         lon += deltaLon
         message = "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
@@ -114,6 +131,7 @@ while True:
         </event>"""
         encodedMessage = bytearray(message, 'ascii')
     elif (messageType == "fx"):
+        # create a freehand graphic in xml format
         message = "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
         message += "<event version='2.0' uid='b112202e-dd33-4fc7-8d3d-09a14e296011' type='u-d-f' time='" + current_time + "' start='" + current_time + "' stale='" + stale_time + "' how='h-e'>"
         message += "<point lat='38.837566759240914' lon='-77.06585180074342' hae='9999999.0' ce='9999999.0' le='9999999.0' />"
@@ -139,6 +157,7 @@ while True:
         </event>""" 
         encodedMessage = bytearray(message, 'ascii')
     elif (messageType == "gx"):
+        # create a geofence in xml format
         message = "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
         message += "<event version='2.0' uid='d0be1c6b-4d86-40ec-bf8f-0e94b621eb3b' type='u-d-c-c' time='" + current_time + "' start='" + current_time + "' stale='" + stale_time + "' how='h-e'>"
         message += "<point lat='38.830898851915514' lon='-77.06586686880725' hae='9999999.0' ce='9999999.0' le='9999999.0' />"
@@ -217,7 +236,7 @@ while True:
                 </event>"""
         encodedMessage = bytearray(message, 'ascii')
     elif (messageType == "msx"):
-        # Create a marker icon in xml format
+        # Create a spot marker in xml format
         message = "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
         message += "<event version='2.0' uid='9405e320-9356-41c4-8449-f46990aa17f8' type='b-m-p-s-m' time='" + current_time + "' start='" + current_time + "' stale='" + stale_time + "' how='h-g-i-g-o'>"
         message += "<point lat='38.85606343062312' lon='-77.0563755018233' hae='9999999.0' ce='9999999.0' le='9999999.0' />"
@@ -342,7 +361,7 @@ while True:
             </event>"""
         encodedMessage = bytearray(message, 'ascii')
     elif (messageType == "tx"):
-        # Create a marker icon in xml format
+        # Create a freehand line (called a "telestration") in xml format
         message = "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
         message += "<event version='2.0' uid='455a0f80-09d1-4088-beb8-ce30cfd34103' type='u-d-f-m' time='" + current_time + "' start='" + current_time + "' stale='" + stale_time + "' how='h-e'>"
         message += "<point lat='0.0' lon='0.0' hae='9999999.0' ce='9999999.0' le='9999999.0' />"
@@ -352,7 +371,7 @@ while True:
                         <strokeColor value='-1'/>
                         <strokeWeight value='4.0'/>
                         <contact callsign='Freehand 1'/>
-                        <remarks></remarks>
+                        <remarks> #COA5</remarks>
                         <archive/>
                         <labels_on value='false'/>
                         <color value='-1'/>
@@ -366,7 +385,7 @@ while True:
         myCotEvent.type = 'a-f-G-E-V-C'
         myCotEvent.uid = 'aa0b0312-b5cd-4c2c-bbbc-9c4c70216261'
         current_time = datetime.datetime.utcnow()
-        stale_time = current_time + datetime.timedelta(hours)
+        stale_time = current_time + datetime.timedelta(days, seconds, microseconds)
         myCotEvent.sendTime = unix_time_millis(current_time)
         myCotEvent.startTime = myCotEvent.sendTime
         myCotEvent.staleTime = unix_time_millis(stale_time)
@@ -378,6 +397,9 @@ while True:
         myCotEvent.le = 999999 
         # add a detail to the cot event
         myDetail = myCotEvent.detail
+
+        # add an xmlDetail to the detail
+        myDetail.xmlDetail = bytes("<remarks> #COA5</remarks>", 'ascii')
 
         # add a contact to the detail
         myContact = myDetail.contact
@@ -405,61 +427,156 @@ while True:
         myTakv.os = 'Microsoft Windows 10 Home'
         myTakv.version = '1.10.0.137'
 
+
+        # The header is of the form:
+        # <magic byte><protocol type><magic byte>
+        # where <magic byte> = \xbf
+        # and <protocol type> = \x00 for xml payload (this doesn't work for some reason with WinTAK/ATAK)
+        #                       \x01 for protobuf payload (this works with WinTAK/ATAK)
         headerByteArray = bytearray(b'\xbf\x01\xbf')
         takMessageByteArray = bytearray(myTakMessage.SerializeToString())
         encodedMessage = headerByteArray + takMessageByteArray
 
         print(encodedMessage)
+    elif (messageType == "dpz"):
+        # Send a pre-canned data package
+        # This is the URL of the ATAK Server
+        url = 'http://192.168.1.25'
+        # This is the location of the zip file that we want to upload
+        fileLocation = '/home/tom/Documents/'
+        # This is the name of the file that we want to upload
+        fileName = 'DP-Plan1.zip'
+        # Get the SHA256 hash of this file
+        sha256_hash = hashlib.sha256()
+        hash = ''
+        fullFilename = fileLocation + fileName
+        with open(fullFilename,"rb") as f:
+            # Read and update hash string value in blocks of 4K
+            for byte_block in iter(lambda: f.read(4096),b""):
+                sha256_hash.update(byte_block)
+            print(sha256_hash.hexdigest())
+            hash = sha256_hash.hexdigest()
+        print ("SHA256 Hash of file " + fullFilename + " = " + hash)
+
+
+        # First, issue a GET request to set the mission hash
+        #  
+        getRequest = '/Marti/sync/missionquery'
+        #params = {'':}        
+
+        with open('/home/tom/downloads/DP-COA10.zip', 'rb') as f:
+            r = requests.post('http://httpbin.org/post', files={'report.xls': f})
+       
+    elif (messageType == 'nunits'):
+        print('Enter the number of units you would like')
+        numUnits = int(input())
+        print('Enter the number of iterations')
+        numIterations = int(input())
+        print('Enter the time between updates (seconds)')
+        numSecondsToSleep = float(input())
 
     elif (messageType == "exit"):
+
         # exit the While loop and the program
         break
 
-    print("message=")
-    print(message)
-    print("encoded message=")
-    print(encodedMessage)
-
-    """     if (messageEcoding == "x"):
-            print("Sending the message as xml")
-            # The header is of the form:
-            # <magic byte><protocol type><magic byte>
-            # where <magic byte> = \xbf
-            # and <protocol type> = \x00 for xml payload
-            #                       \x01 for protobuf payload
-            #
-            # Since this is xml payload we set the <protocol type> = \x00
-            #xmlHeader = b'\xbf\x00\xbf'
-            #encodedMessage = bytearray(message, 'utf8')
-            encodedMessage = bytearray(message, 'ascii')
-            #encodedMessage = xmlHeader + bytes(encodedMessage)
-            print("encoded xml message")
-            print(encodedMessage)
-        else:
-            print("Sending the message as protobuf")
-            # Now encode the message as protobuf
-            decodedMessage = ""
-            #encodedMessage = takprotobuf.xmlToProto(message)
-            #decodedMessage = takprotobuf.parseProto(encodedMessage)
-            print("encoded protobuf message")
-            print(encodedMessage)
-            #print ('sending "%s"' % decodedMessage) """
-
     # Send data to the multicast group
+    if (messageType != 'nunits'):
+        print("message=")
+        print(message)
+        print("encoded message=")
+        print(encodedMessage)
 
-    sent = sock.sendto(encodedMessage, multicast_group)
-    # Look for responses from all recipients
-    """ while True:
-        print ('waiting to receive')
-        try:
-            data, server = sock.recvfrom(16)
-        except socket.timeout:
-            print ('timed out, no more responses')
-            break
-        else:
-            print ('received "%s" from %s' % (data, server)) """
+        # only send data once
+        sent = sock.sendto(encodedMessage, multicast_group)
+    else:
+        # Send a bunch of units over and over again, centred around Washington DC
+        guidList = list()
+        latList = list()
+        lonList = list()
+        symbolList = list()
+        iconsetList = list()
+        hashTagList = list()
 
-#finally:
+        # We'll have nunits spread across lonExtent units of llatitude, ongitude (all in a line)
+        lonExtent = 1.0
+        latExtent = 1.0
+        lonDelta = lonExtent/numUnits
+        latDelta = latExtent/numUnits
+
+        for i in range(0, numUnits):
+            # Create the GUIDs for the objects that we'll send to winTAK
+            guidList.append(str(uuid.uuid4()))
+            # If you want all the units in a line use this code
+            #latList.append(lat + i*latDelta)
+            #lonList.append(lon + i*lonDelta)
+            # If you want all the units randomly distributed within the area use this code
+            latList.append(random.uniform(lat, lat + latExtent))
+            lonList.append(random.uniform(lon, lon + lonExtent))
+
+            # There are 4 possible affiliations. f=Friendly, h=Hostile, u=Unknown, n=Neutral
+            # cycle through these for every 4th symbol.
+            # As well, put a hashtag on each object so that it can be filtered by hashtag in WinTAK
+            if ((i%4) == 0):
+                # Friendly (f second position)
+                symbolList.append('a-f-G-P-U-C-I-Z')
+                hashTagList.append('#SA_Friendly')
+                iconsetList.append('COT_MAPPING_2525B/a-f/a-f-G-P-U-C-I-Z')
+            if ((i%4) == 1):
+                # Unknown (u second position)
+                symbolList.append('a-u-G-P-U-C-I-Z')
+                hashTagList.append('#SA_Unknown')
+                iconsetList.append('COT_MAPPING_2525B/a-u/a-u-G-P-U-C-I-Z')
+            if ((i%4) == 2):
+                # Hostile (h second position)
+                symbolList.append('a-h-G-P-U-C-I-Z')
+                hashTagList.append('#SA_Hostile')
+                iconsetList.append('COT_MAPPING_2525B/a-h/a-h-G-P-U-C-I-Z')
+            if ((i%4) == 3):
+                # Neutral (n second position)
+                symbolList.append('a-n-G-P-U-C-I-Z')
+                hashTagList.append('#SA_Neutral')
+                iconsetList.append('COT_MAPPING_2525B/a-n/a-n-G-P-U-C-I-Z')
+
+        for i in range(0, numIterations):
+            for j in range(0, numUnits):
+                current_time = datetime.datetime.utcnow().isoformat()
+                current_time += "Z"
+                # Create a marker in xml format
+                message = "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
+                message += "<event version='2.0' uid='" + guidList[j] + "' type='" + symbolList[j] + "' time='" + current_time + "' start='" + current_time + "' stale='" + stale_time + "' how='h-g-i-g-o'>"
+                message += "<point lat='" + str(latList[j]) + "' lon='" + str(lonList[j]) + "' hae='9999999.0' ce='9999999.0' le='9999999.0' />"
+                message += """
+                    <detail>
+                        <status readiness='true'/>
+                        <archive/>
+                        <link uid='ANDROID-589520ccfcd20f01' production_time='2020-12-16T19:50:57.629Z' type='a-f-G-U-C' parent_callsign='HOPE' relation='p-p'/>"""
+                message += "        <contact callsign='U.16." + str(j) + "'/>"
+                message += "        <remarks> " + hashTagList[j] + "</remarks>"
+                message += """        <archive/>
+                        <color argb='-1'/>
+                        <precisionlocation altsrc='???'/>"""
+                message += "        <usericon iconsetpath='" + iconsetList[j] + "'/>"
+                message += """    </detail>
+                </event>"""
+
+                encodedMessage = bytearray(message, 'ascii')
+                # send the data
+                sent = sock.sendto(encodedMessage, multicast_group)
+
+            # Now, sleep for a bit
+            print(' Sent group =' + str(i) + ' sleeping for ' + str(numSecondsToSleep) + ' seconds')
+            time.sleep(numSecondsToSleep)
+
+            # And now move the units in a vertical direction. Bounce up and down between lat and latExtent
+            numIncrements = 10
+            yIncrement = float(latExtent/float(numIncrements))
+            for j in range(0, numUnits):
+                latList[j] += yIncrement*direction
+ 
+            # reverse direction every numIncrements
+            if (((i+1)%numIncrements) == 0):
+                direction *= -1.0
 
 print ('closing socket')
 sock.close()
